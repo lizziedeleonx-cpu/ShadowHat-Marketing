@@ -1,0 +1,64 @@
+name: Compilar APK SHADOWHAT
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.4'
+
+      - name: Extraer proyecto SHADOWHAT
+        run: |
+          mkdir -p appsrc
+          unzip -o SHADOWHAT-Android-Kotlin-Compose.zip -d appsrc
+          PROJECT_DIR=$(find appsrc -type f -name settings.gradle.kts -print -quit | xargs dirname)
+          if [ -z "$PROJECT_DIR" ]; then
+            PROJECT_DIR=$(find appsrc -type f -name settings.gradle -print -quit | xargs dirname)
+          fi
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "No se encontro el proyecto Android"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Compilar APK
+        run: gradle -p "$PROJECT_DIR" assembleDebug --no-daemon
+
+      - name: Preparar archivo APK
+        run: |
+          APK=$(find "$PROJECT_DIR" -type f -path "*/build/outputs/apk/debug/*.apk" -print -quit)
+          if [ -z "$APK" ]; then
+            echo "No se encontro la APK compilada"
+            exit 1
+          fi
+          cp "$APK" "$GITHUB_WORKSPACE/SHADOWHAT-debug.apk"
+
+      - name: Publicar APK para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHADOWHAT-APK
+          path: SHADOWHAT-debug.apk
+          if-no-files-found: error
+          
